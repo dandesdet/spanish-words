@@ -1278,12 +1278,12 @@ function advanceCard(e, result) {
     roundLearnSet.add(card.id);
   }
   const el = document.getElementById('mainCard');
-  el.classList.add(result==='know' ? 'exit-right' : 'exit-left');
+  el.classList.add('exit-left');
   el.addEventListener('animationend', () => {
-    el.classList.remove('exit-right','exit-left','flipped');
+    el.classList.remove('exit-left','flipped');
     isFlipped = false; currentIdx++;
     if (currentIdx >= studyQueue.length) { isAnimating=false; showResults(); }
-    else { renderCard(currentIdx, result==='know'?'right':'left'); isAnimating=false; }
+    else { renderCard(currentIdx, 'right'); isAnimating=false; }
   }, {once:true});
 }
 
