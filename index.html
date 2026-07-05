@@ -151,14 +151,10 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .card-stage{width:min(340px,86vw);height:460px;perspective:1200px;position:relative;margin-top:26px;}
 .card{width:100%;height:100%;position:absolute;top:0;left:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);cursor:pointer;will-change:transform;}
 .card.flipped{transform:rotateY(180deg);}
-.card.exit-left{animation:slideLeft .38s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none;}
-.card.exit-right{animation:slideRight .38s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none;}
-.card.enter-right{animation:enterR .38s cubic-bezier(.4,0,.2,1) forwards;}
-.card.enter-left{animation:enterL .38s cubic-bezier(.4,0,.2,1) forwards;}
-@keyframes slideLeft{to{transform:translateX(-115%);opacity:0}}
-@keyframes slideRight{to{transform:translateX(115%);opacity:0}}
-@keyframes enterR{from{transform:translateX(115%);opacity:0}to{transform:none;opacity:1}}
-@keyframes enterL{from{transform:translateX(-115%);opacity:0}to{transform:none;opacity:1}}
+.card.exit-left{animation:slideLeft .4s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none;}
+.card.enter-right{animation:enterFromRight .4s cubic-bezier(.4,0,.2,1) forwards;}
+@keyframes slideLeft{from{transform:translateX(0);opacity:1}to{transform:translateX(-120%);opacity:0}}
+@keyframes enterFromRight{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
 
 .face{position:absolute;inset:0;border-radius:22px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px;overflow:hidden;}
 .face.front{background:var(--card-front);border:1px solid rgba(255,255,255,.06);box-shadow:0 18px 50px rgba(0,0,0,.55);}
@@ -333,7 +329,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
       <div class="study-prog-fill" id="studyProgFill" style="width:0%"></div>
     </div>
   </div>
-  <div class="card-stage">
+  <di<div class="card-stage">
     <div class="card" id="mainCard">
       <div class="face front">
         <div id="cardImageWrap" class="card-image-ph">🖼️</div>
@@ -499,6 +495,7 @@ let knownCount  = 0;
 let learnCount  = 0;
 let isFlipped   = false;
 let isAnimating = false;
+let isEntering  = false;
 let roundLearnSet = new Set(); // ids marked learn this round
 let studyOrigin   = 'screen-home'; // where to return on ESC
 
@@ -1181,32 +1178,28 @@ function startStudyFromGallery() {
 function toggleTextMode(e) {
   e.stopPropagation();
   cardMode = (cardMode + 1) % 3;
-  const btn = document.getElementById('btnModeToggle');
-  if (btn) {
-    btn.classList.toggle('active', cardMode > 0);
-    btn.textContent = cardMode === 0 ? 'Aa' : cardMode === 1 ? 'Aa' : '🖼+Aa';
-  }
   applyCardMode();
 }
 
 function applyCardMode() {
-  const frontFace = document.querySelector('#mainCard .face.front');
-  const imgWrap   = frontFace ? frontFace.querySelector('#cardImageWrap') : document.getElementById('cardImageWrap');
-  const textWrap  = document.getElementById('cardTextMode');
-  const textWord  = document.getElementById('cardTextWord');
-  const card      = studyQueue[currentIdx];
+  const front = document.querySelector('#mainCard .face.front');
+  if (!front) return;
+  const imgWrap  = front.querySelector('#cardImageWrap, .card-image, .card-image-ph');
+  const textWrap = document.getElementById('cardTextMode');
+  const textWord = document.getElementById('cardTextWord');
+  const card     = studyQueue[currentIdx];
   if (!card) return;
+  const btn = document.getElementById('btnModeToggle');
+  if (btn) btn.classList.toggle('active', cardMode > 0);
+
   if (cardMode === 0) {
-    // image only
     if (imgWrap)  imgWrap.style.display = '';
     if (textWrap) textWrap.style.display = 'none';
   } else if (cardMode === 1) {
-    // text only
     if (imgWrap)  imgWrap.style.display = 'none';
     if (textWrap) textWrap.style.display = 'flex';
     if (textWord) textWord.textContent = card.translation || '—';
   } else {
-    // image + text
     if (imgWrap)  imgWrap.style.display = '';
     if (textWrap) { textWrap.style.display = 'flex'; textWrap.style.marginBottom = '0'; }
     if (textWord) textWord.textContent = card.translation || '—';
@@ -1219,28 +1212,22 @@ function renderCard(idx, dir) {
   isFlipped  = false;
   el.classList.remove('flipped');
 
-  // image — always update src directly on front face element
+  // image
   const frontFace = el.querySelector('.face.front');
   let wrap = frontFace ? frontFace.querySelector('#cardImageWrap') : document.getElementById('cardImageWrap');
-  if (!wrap) wrap = document.getElementById('cardImageWrap');
-
   if (card.image) {
-    if (wrap && wrap.tagName === 'IMG') {
-      wrap.src = card.image;
-      wrap.style.display = '';
-    } else if (wrap) {
+    if (wrap && wrap.tagName === 'IMG') { wrap.src = card.image; wrap.style.display=''; }
+    else if (wrap) {
       const img = document.createElement('img');
-      img.id = 'cardImageWrap'; img.className = 'card-image'; img.src = card.image;
+      img.id='cardImageWrap'; img.className='card-image'; img.src=card.image;
       wrap.replaceWith(img);
     }
   } else {
     if (wrap && wrap.tagName === 'IMG') {
       const ph = document.createElement('div');
-      ph.id = 'cardImageWrap'; ph.className = 'card-image-ph'; ph.textContent = '🖼️';
+      ph.id='cardImageWrap'; ph.className='card-image-ph'; ph.textContent='🖼️';
       wrap.replaceWith(ph);
-    } else if (wrap) {
-      wrap.className = 'card-image-ph'; wrap.textContent = '🖼️';
-    }
+    } else if (wrap) { wrap.className='card-image-ph'; wrap.textContent='🖼️'; }
   }
 
   document.getElementById('cardWord').textContent   = card.word          || '—';
@@ -1251,8 +1238,10 @@ function renderCard(idx, dir) {
   document.getElementById('studyCounter').textContent = `${idx+1} / ${total}`;
   document.getElementById('studyProgFill').style.width = Math.round((idx/total)*100)+'%';
 
-  if (dir === 'right') { el.classList.add('enter-right'); el.addEventListener('animationend',()=>el.classList.remove('enter-right'),{once:true}); }
-  else if (dir === 'left') { el.classList.add('enter-left'); el.addEventListener('animationend',()=>el.classList.remove('enter-left'),{once:true}); }
+  if (dir === 'right') {
+    el.classList.add('enter-right');
+    el.addEventListener('animationend', () => el.classList.remove('enter-right'), {once:true});
+  }
 
   el.onclick = flipCard;
   applyCardMode();
@@ -1268,22 +1257,19 @@ function advanceCard(e, result) {
   if (e) e.stopPropagation();
   if (isAnimating) return;
   isAnimating = true;
+
   const card = studyQueue[currentIdx];
-  if (result === 'know') {
-    knownCount++;
-    card.known = true;
-    save();
-  } else {
-    learnCount++;
-    roundLearnSet.add(card.id);
-  }
+  if (result === 'know') { knownCount++; card.known = true; save(); }
+  else { learnCount++; roundLearnSet.add(card.id); }
+
   const el = document.getElementById('mainCard');
   el.classList.add('exit-left');
   el.addEventListener('animationend', () => {
     el.classList.remove('exit-left','flipped');
-    isFlipped = false; currentIdx++;
+    isFlipped = false;
+    currentIdx++;
     if (currentIdx >= studyQueue.length) { isAnimating=false; showResults(); }
-    else { renderCard(currentIdx, 'right'); isAnimating=false; }
+    else { renderCard(currentIdx,'right'); isAnimating=false; }
   }, {once:true});
 }
 
@@ -1295,7 +1281,7 @@ document.addEventListener('keydown', e => {
   if (!document.getElementById('screen-study').classList.contains('active')) return;
   if (e.key==='Escape') { e.preventDefault(); exitStudy(); return; }
   if (e.key===' '||e.key==='ArrowUp') { e.preventDefault(); flipCard(); }
-  else if (e.key==='ArrowRight') { e.preventDefault(); isFlipped ? advanceCard(null,'know')  : flipCard(); }
+  else if (e.key==='ArrowRight') { e.preventDefault(); isFlipped ? advanceCard(null,'know') : flipCard(); }
   else if (e.key==='ArrowLeft')  { e.preventDefault(); isFlipped ? advanceCard(null,'learn') : flipCard(); }
 });
 
