@@ -238,6 +238,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
     <button class="btn btn-outline" onclick="openGallery()">Gallery</button>
     <button class="btn btn-ghost"   onclick="exportData()">↑ Export</button>
     <label  class="btn btn-ghost" style="cursor:pointer;">↓ Import<input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importData(event)"></label>
+    <button class="btn btn-ghost"   onclick="openApiKeyModal()">🔑 API Key</button>
     <button class="btn btn-ghost"   onclick="openResetModal()">↺ Reset all</button>
   </div>
   <div id="storageIndicator" style="margin-top:12px;font-size:.7rem;color:var(--muted2);text-align:center;"></div>
@@ -468,6 +469,19 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
       <button class="btn btn-outline" onclick="resetProgress()">Reset progress</button>
       <button class="btn btn-danger"  onclick="resetAll()">Delete everything</button>
       <button class="btn btn-ghost"   onclick="closeModal('modalReset')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- API KEY MODAL -->
+<div class="modal-overlay" id="modalApiKey">
+  <div class="modal">
+    <div class="modal-title">🔑 Anthropic API Key</div>
+    <div class="modal-desc">Enter your Anthropic API key to enable image recognition. It is stored only in your browser.</div>
+    <input class="text-input" id="apiKeyInput" type="password" placeholder="sk-ant-...">
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="saveApiKey()">Save</button>
+      <button class="btn btn-ghost"   onclick="closeModal('modalApiKey')">Cancel</button>
     </div>
   </div>
 </div>
@@ -953,9 +967,11 @@ Return ONLY a raw JSON object, no markdown, no backticks:
 {"word":"Spanish word with article or verb infinitive e.g. el gato or correr","transcription":"Russian-friendly pronunciation e.g. [эль гáто]","translation":"Russian translation e.g. кот or бежать"}
 For verbs use infinitive (correr, saltar). For nouns use article (el/la).`;
   }
+  const apiKey = localStorage.getItem('es_api_key') || '';
+  if (!apiKey) throw new Error('No API key set. Please add your Anthropic API key via the 🔑 API Key button.');
   const r = await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01'},
+    headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','x-api-key':apiKey,'anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({
       model:'claude-sonnet-4-20250514', max_tokens:400,
       messages:[{role:'user',content:[
@@ -1309,6 +1325,17 @@ function repeatUnknown() {
 // ════════════════════════════════
 // RESET
 // ════════════════════════════════
+function openApiKeyModal() {
+  const inp = document.getElementById('apiKeyInput');
+  inp.value = localStorage.getItem('es_api_key') || '';
+  document.getElementById('modalApiKey').classList.add('open');
+  setTimeout(()=>inp.focus(),100);
+}
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (key) { localStorage.setItem('es_api_key', key); closeModal('modalApiKey'); }
+  else { alert('Please enter a valid API key.'); }
+}
 function openResetModal() { document.getElementById('modalReset').classList.add('open'); }
 function resetProgress() {
   cards.forEach(c=>c.known=false); save(); renderHome();
