@@ -891,16 +891,9 @@ async function _runProcessing() {
       const hint = useFilename ? fileName : (useWordList ? (hintWords[i] || rawHint) : (rawHint || ''));
       const data = await recognizeImage(b64, mime, hint);
       const rawDataUrl = `data:${mime};base64,${b64}`;
-      // try to save image, if localStorage is full - compress more aggressively
-      let compressedImg = await compressImage(rawDataUrl, 400, 0.6);
+      // IndexedDB has plenty of space - compress modestly for quality
+      const compressedImg = await compressImage(rawDataUrl, 500, 0.7);
       const cardId = uid();
-      try {
-        localStorage.setItem('es_i_test', compressedImg);
-        localStorage.removeItem('es_i_test');
-      } catch(e) {
-        // storage full - compress harder
-        compressedImg = await compressImage(rawDataUrl, 200, 0.5);
-      }
       cards.push({ id:cardId, folderId:currentFolderId, image:compressedImg, known:false, ...data });
       save();
     } catch(e) { console.error('skip:', e.message); }
@@ -1153,9 +1146,7 @@ function deleteSelected() {
   // snapshot ids before any state change
   const toDelete = new Set(selectedCards);
   const n = toDelete.size;
-  toDelete.forEach(id => {
-    try { localStorage.removeItem('es_i_' + id); } catch(e) {}
-  });
+  toDelete.forEach(id => dbDel('images', id).catch(console.error));
   cards = cards.filter(c => !toDelete.has(c.id));
   selectedCards.clear();
   deleteMode = false;
