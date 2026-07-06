@@ -881,6 +881,12 @@ async function startProcessing() {
 }
 
 async function _runProcessing() {
+  const apiKey = localStorage.getItem('es_api_key') || '';
+  if (!apiKey) {
+    alert('⚠️ API key not set.\n\nClick "🔑 API Key" on the home screen and enter your Anthropic API key.');
+    showScreen('screen-home');
+    return;
+  }
   showScreen('screen-processing');
   const status = document.getElementById('processingStatus');
   const fill   = document.getElementById('progressFill');
@@ -910,7 +916,11 @@ async function _runProcessing() {
       const cardId = uid();
       cards.push({ id:cardId, folderId:currentFolderId, image:compressedImg, known:false, ...data });
       save();
-    } catch(e) { console.error('skip:', e.message); }
+    } catch(e) {
+      console.error('skip:', e.message);
+      status.textContent = `❌ Error on image ${i+1}: ${e.message}`;
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
   fill.style.width = '100%';
   pendingFiles = [];
@@ -973,7 +983,7 @@ For verbs use infinitive (correr, saltar). For nouns use article (el/la).`;
     method:'POST',
     headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','x-api-key':apiKey,'anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({
-      model:'claude-sonnet-4-20250514', max_tokens:400,
+      model:'claude-sonnet-4-6', max_tokens:400,
       messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:mime,data:b64}},
         {type:'text',text:prompt}
