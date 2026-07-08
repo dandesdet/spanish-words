@@ -141,7 +141,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 
 /* ── STUDY ── */
 #screen-study{justify-content:flex-start;padding-top:0;padding-bottom:40px;}
-.study-header{position:sticky;top:0;width:100%;padding:14px 2px 0;display:flex;align-items:center;gap:14px;background:var(--bg);z-index:10;flex-direction:column;}
+.study-header{position:fixed;top:0;left:0;right:0;width:100%;padding:20px 24px 0;display:flex;align-items:center;gap:14px;background:var(--bg);z-index:100;flex-direction:column;}
 .study-header-row{display:flex;align-items:center;justify-content:space-between;width:100%;}
 .study-logo{font-family:'Playfair Display',serif;color:var(--gold);font-size:1.15rem;opacity:1;font-weight:700;letter-spacing:.06em;}
 .study-counter{color:var(--muted);font-size:.78rem;letter-spacing:.08em;}
@@ -194,12 +194,12 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 
 /* ── RESULTS ── */
 #screen-results{justify-content:center;}
-.results-wrap{text-align:center;max-width:380px;width:90%;}
+.results-wrap{text-align:center;max-width:380px;width:90%;background:#171714;border-radius:20px;padding:40px 32px;}
 .results-logo{font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--gold);opacity:.7;margin-bottom:20px;cursor:pointer;transition:opacity .18s;letter-spacing:.04em;}
 .results-logo:hover{opacity:1;}
 .page-logo{font-family:'Playfair Display',serif;font-size:1.05rem;color:var(--gold);opacity:.65;cursor:pointer;transition:opacity .18s;letter-spacing:.04em;display:block;text-align:center;padding:18px 0 0;}
 .page-logo:hover{opacity:1;}
-.topbar{width:100%;padding:14px 2px 0;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:0;}
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
 .topbar-logo{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--gold);opacity:1;cursor:pointer;transition:opacity .18s;letter-spacing:.06em;font-weight:700;}
 .topbar-label{color:var(--muted);font-size:.78rem;letter-spacing:.08em;}
 .topbar-logo:hover{opacity:1;}
@@ -325,7 +325,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 <div class="screen" id="screen-study">
   <div class="study-header">
     <div class="study-header-row">
-      <div class="study-logo" onclick="showScreen('screen-home')" style="cursor:pointer;opacity:.65;transition:opacity .2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity='.65'">español</div>
+      <div class="study-logo" onclick="showScreen('screen-home')" style="cursor:pointer;">español</div>
       <div class="study-counter" id="studyCounter"></div>
     </div>
     <div class="study-prog-wrap">
