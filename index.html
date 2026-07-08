@@ -220,7 +220,9 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .unknown-es{color:var(--gold-light);font-family:'Playfair Display',serif;}
 .unknown-ru{color:var(--muted);}
 .results-buttons{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;}
+.drive-ok{color:#4caf50 !important;border-color:rgba(76,175,80,.3) !important;}
 </style>
+<script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
 
@@ -245,6 +247,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
     <label  class="btn btn-ghost" style="cursor:pointer;">↓ Import<input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importData(event)"></label>
     <button class="btn btn-ghost"   onclick="openApiKeyModal()">🔑 API Key</button>
     <button class="btn btn-ghost"   onclick="openResetModal()">↺ Reset all</button>
+    <button class="btn btn-ghost"   id="btnDrive" onclick="driveButtonClick()">☁️ Connect Drive</button>
   </div>
   <div id="storageIndicator" style="margin-top:12px;font-size:.7rem;color:var(--muted2);text-align:center;"></div>
 </div>
@@ -585,6 +588,7 @@ function save() {
   cards.forEach(c => { if (c.image) dbPut('images', c.id, c.image).catch(console.error); });
   dbKeys('images').then(keys => keys.filter(k => !usedIds.has(k)).forEach(k => dbDel('images',k))).catch(console.error);
   updateStorageIndicator();
+  scheduleDrivePush();
 }
 
 async function load() {
@@ -1682,6 +1686,12 @@ function importData(event) {
 load().then(() => {
   renderHome();
   document.getElementById('renameFolderInput').addEventListener('keydown', e => { if(e.key==='Enter') confirmRenameFolder(); });
+  // Auto-reconnect Drive if previously connected
+  if (localStorage.getItem('drive_connected')) {
+    driveGetToken('').then(() => { updateDriveUI('connected'); drivePull(); }).catch(() => {
+      localStorage.removeItem('drive_connected'); updateDriveUI('idle');
+    });
+  }
 });
 document.getElementById('useFilenameCheck').addEventListener('change', e => {
   document.getElementById('hintTextWrap').style.display = e.target.checked ? 'none' : 'block';
@@ -1759,6 +1769,149 @@ function showNewFolderSuggestion(suggestedName, imgs) {
     const origConfirm = window._confirmNewFolderExtra;
     window._confirmNewFolderExtra = () => { desc.textContent = origDesc; window._confirmNewFolderExtra = null; };
   });
+}
+
+// ════════════════════════════════
+// GOOGLE DRIVE SYNC
+// ════════════════════════════════
+const DRIVE_CLIENT_ID = '522401322556-6555lck4o1ehbi35jiau8ginjh1bgof6.apps.googleusercontent.com';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+let driveToken = null;
+let driveFileMap = {};
+let driveSyncTimer = null;
+
+function driveGetToken(prompt = 'consent') {
+  return new Promise((resolve, reject) => {
+    if (typeof google === 'undefined') { reject(new Error('Google API not loaded yet')); return; }
+    google.accounts.oauth2.initTokenClient({
+      client_id: DRIVE_CLIENT_ID, scope: DRIVE_SCOPE,
+      callback: r => { if (r.error) reject(new Error(r.error_description || r.error)); else { driveToken = r.access_token; resolve(); } }
+    }).requestAccessToken({ prompt });
+  });
+}
+
+async function driveReq(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { Authorization: `Bearer ${driveToken}`, ...(opts.headers||{}) } });
+  if (r.status === 401) { await driveGetToken(''); return driveReq(url, opts); }
+  return r;
+}
+
+async function driveListFiles() {
+  const r = await driveReq('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&pageSize=1000');
+  driveFileMap = {};
+  ((await r.json()).files || []).forEach(f => { driveFileMap[f.name] = f.id; });
+}
+
+async function driveGet(name) {
+  if (!driveFileMap[name]) return null;
+  return driveReq(`https://www.googleapis.com/drive/v3/files/${driveFileMap[name]}?alt=media`);
+}
+
+async function driveUpsert(name, body, mime) {
+  const blob = body instanceof Blob ? body : new Blob([body], { type: mime });
+  if (driveFileMap[name]) {
+    await driveReq(`https://www.googleapis.com/upload/drive/v3/files/${driveFileMap[name]}?uploadType=media`,
+      { method: 'PATCH', body: blob, headers: { 'Content-Type': mime } });
+  } else {
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name, parents: ['appDataFolder'] })], { type: 'application/json' }));
+    form.append('media', blob);
+    const r = await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', body: form });
+    const d = await r.json(); if (d.id) driveFileMap[name] = d.id;
+  }
+}
+
+async function driveDeleteFile(name) {
+  if (!driveFileMap[name]) return;
+  await driveReq(`https://www.googleapis.com/drive/v3/files/${driveFileMap[name]}`, { method: 'DELETE' });
+  delete driveFileMap[name];
+}
+
+async function drivePull() {
+  if (!driveToken) return;
+  updateDriveUI('syncing');
+  try {
+    await driveListFiles();
+    const metaR = await driveGet('espanol-meta.json');
+    if (!metaR) { updateDriveUI('connected'); return; }
+    const meta = JSON.parse(await metaR.text());
+    folders = meta.folders || [];
+    const remotecards = meta.cards || [];
+    cards = await Promise.all(remotecards.map(async card => {
+      const cached = await dbGet('images', card.id);
+      if (cached) return { ...card, image: cached };
+      const imgR = await driveGet(`espanol-img-${card.id}`);
+      if (!imgR) return { ...card, image: null };
+      const blob = await imgR.blob();
+      const dataUrl = await new Promise(res => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.readAsDataURL(blob); });
+      await dbPut('images', card.id, dataUrl);
+      return { ...card, image: dataUrl };
+    }));
+    save(); renderHome(); updateDriveUI('connected');
+  } catch(e) { console.error('Drive pull', e); updateDriveUI('connected'); }
+}
+
+async function drivePush() {
+  if (!driveToken) return;
+  updateDriveUI('syncing');
+  try {
+    await driveListFiles();
+    await driveUpsert('espanol-meta.json',
+      JSON.stringify({ version:1, folders, cards: cards.map(c => ({...c, image:undefined})) }),
+      'application/json');
+    const usedIds = new Set(cards.map(c => c.id));
+    for (const card of cards) {
+      const img = card.image || await dbGet('images', card.id);
+      if (img) {
+        const bin = atob(img.split(',')[1]);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        await driveUpsert(`espanol-img-${card.id}`, new Blob([buf], { type: 'image/jpeg' }), 'image/jpeg');
+      }
+    }
+    for (const name of Object.keys(driveFileMap)) {
+      if (name.startsWith('espanol-img-') && !usedIds.has(name.slice(12))) await driveDeleteFile(name);
+    }
+    updateDriveUI('connected');
+  } catch(e) { console.error('Drive push', e); updateDriveUI('connected'); }
+}
+
+function scheduleDrivePush() {
+  if (!driveToken) return;
+  clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(drivePush, 4000);
+}
+
+function updateDriveUI(state) {
+  const btn = document.getElementById('btnDrive');
+  if (!btn) return;
+  const map = {
+    idle:       ['☁️ Connect Drive', 'btn btn-ghost', false],
+    connecting: ['☁️ Connecting…',   'btn btn-ghost', true],
+    syncing:    ['☁️ Syncing…',       'btn btn-ghost', true],
+    connected:  ['☁️ Drive ✓',        'btn btn-ghost drive-ok', false],
+  };
+  const [text, cls, dis] = map[state] || map.idle;
+  btn.textContent = text; btn.className = cls; btn.disabled = dis;
+}
+
+async function driveSignIn() {
+  updateDriveUI('connecting');
+  try {
+    await driveGetToken('consent');
+    localStorage.setItem('drive_connected', '1');
+    await drivePull();
+  } catch(e) { updateDriveUI('idle'); alert('Drive: ' + e.message); }
+}
+
+function driveButtonClick() {
+  if (driveToken) {
+    if (confirm('Disconnect Google Drive?')) {
+      google.accounts.oauth2.revoke(driveToken, () => {});
+      driveToken = null; driveFileMap = {};
+      localStorage.removeItem('drive_connected'); updateDriveUI('idle');
+    }
+  } else { driveSignIn(); }
 }
 </script>
 </body>
