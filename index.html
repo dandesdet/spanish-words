@@ -1239,6 +1239,13 @@ function renderCard(idx, dir) {
   isFlipped  = false;
   el.classList.remove('flipped');
 
+  // Pre-position off-screen so content swap is invisible
+  if (dir === 'right') {
+    el.style.transform = 'translateX(120%)';
+    el.style.opacity   = '0';
+    el.offsetHeight;   // force reflow
+  }
+
   // image
   const frontFace = el.querySelector('.face.front');
   let wrap = frontFace ? frontFace.querySelector('#cardImageWrap') : document.getElementById('cardImageWrap');
@@ -1267,7 +1274,11 @@ function renderCard(idx, dir) {
 
   if (dir === 'right') {
     el.classList.add('enter-right');
-    el.addEventListener('animationend', () => el.classList.remove('enter-right'), {once:true});
+    el.addEventListener('animationend', () => {
+      el.classList.remove('enter-right');
+      el.style.transform = '';
+      el.style.opacity   = '';
+    }, {once:true});
   }
 
   el.onclick = flipCard;
