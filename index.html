@@ -916,18 +916,14 @@ async function _runProcessing() {
     fill.style.width = Math.round((i/total)*100)+'%';
     const file = pendingFiles[i];
     try {
-      const b64  = await fileToBase64(file);
-      const mime = await detectMimeType(file);
       // Priority: 1) filename checkbox, 2) word list by index, 3) manual hint, 4) filename fallback
       const useFilename = document.getElementById('useFilenameCheck').checked;
-      const fileName = file.name.replace(/\.[^.]+$/, '').trim(); // keep original filename chars
+      const fileName = file.name.replace(/\.[^.]+$/, '').trim();
       const hint = useFilename ? fileName : (useWordList ? (hintWords[i] || rawHint) : (rawHint || ''));
-      const rawDataUrl = `data:${mime};base64,${b64}`;
-      // Convert to PNG for API compatibility (handles HEIC, JPEG, and other formats)
-      const pngDataUrl = await toPngDataUrl(rawDataUrl);
+      // Use blob URL so iOS Safari can decode HEIC/any native format via its own decoder
+      const pngDataUrl = await fileToCanvas(file, 1200);
       const pngB64 = pngDataUrl.split(',')[1];
       const data = await recognizeImage(pngB64, 'image/png', hint);
-      // Reuse already-loaded pngDataUrl for compression (avoids re-loading original format)
       const compressedImg = await compressImage(pngDataUrl, 500, 0.7);
       const cardId = uid();
       cards.push({ id:cardId, folderId:currentFolderId, image:compressedImg, known:false, ...data });
@@ -946,6 +942,28 @@ async function _runProcessing() {
   fill.style.width = '100%';
   pendingFiles = [];
   setTimeout(() => { renderHome(); showScreen('screen-home'); }, 500);
+}
+
+// Load a File via blob URL (works for HEIC on iOS) and render to canvas as PNG
+function fileToCanvas(file, maxSize=1200) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else        { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Cannot decode image: ' + file.name)); };
+    img.src = url;
+  });
 }
 
 // Convert image to PNG, resized to max 1200px (prevents iOS memory crash on large photos)
