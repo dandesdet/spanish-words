@@ -920,21 +920,33 @@ async function _runProcessing() {
       const useFilename = document.getElementById('useFilenameCheck').checked;
       const fileName = file.name.replace(/\.[^.]+$/, '').trim();
       const hint = useFilename ? fileName : (useWordList ? (hintWords[i] || rawHint) : (rawHint || ''));
-      // Use blob URL so iOS Safari can decode HEIC/any native format via its own decoder
+
+      status.textContent = `Image ${i+1} of ${total}: decoding…`;
       const pngDataUrl = await fileToCanvas(file, 1200);
+
+      status.textContent = `Image ${i+1} of ${total}: analyzing…`;
       const pngB64 = pngDataUrl.split(',')[1];
       const data = await recognizeImage(pngB64, 'image/png', hint);
+
+      status.textContent = `Image ${i+1} of ${total}: saving…`;
       const compressedImg = await compressImage(pngDataUrl, 500, 0.7);
       const cardId = uid();
       cards.push({ id:cardId, folderId:currentFolderId, image:compressedImg, known:false, ...data });
-      save();
+      await new Promise((res, rej) => {
+        const meta = cards.map(c => ({...c, image:undefined}));
+        Promise.all([
+          dbPut('meta','folders', JSON.parse(JSON.stringify(folders))),
+          dbPut('meta','cards', meta),
+          dbPut('images', cardId, compressedImg)
+        ]).then(res).catch(rej);
+      });
     } catch(e) {
       console.error('Error on image', i+1, e);
       const errBox = document.getElementById('processingError');
       const backBtn = document.getElementById('processingBackBtn');
       document.getElementById('processingSpinner').style.display = 'none';
       errBox.style.display = 'block';
-      errBox.textContent = `❌ Error on image ${i+1}: ${e.message}`;
+      errBox.textContent = `❌ Error on image ${i+1} (${e.message})`;
       backBtn.style.display = 'inline-flex';
       return;
     }
