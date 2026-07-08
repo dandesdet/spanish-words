@@ -993,7 +993,7 @@ For verbs use infinitive (correr, saltar). For nouns use article (el/la).`;
     method:'POST',
     headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','x-api-key':apiKey,'anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({
-      model:'claude-sonnet-4-5-20250514', max_tokens:400,
+      model:'claude-sonnet-4-6', max_tokens:400,
       messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:mime,data:b64}},
         {type:'text',text:prompt}
