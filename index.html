@@ -924,8 +924,8 @@ async function _runProcessing() {
       const pngDataUrl = await toPngDataUrl(rawDataUrl);
       const pngB64 = pngDataUrl.split(',')[1];
       const data = await recognizeImage(pngB64, 'image/png', hint);
-      // IndexedDB has plenty of space - compress modestly for quality
-      const compressedImg = await compressImage(rawDataUrl, 500, 0.7);
+      // Reuse already-loaded pngDataUrl for compression (avoids re-loading original format)
+      const compressedImg = await compressImage(pngDataUrl, 500, 0.7);
       const cardId = uid();
       cards.push({ id:cardId, folderId:currentFolderId, image:compressedImg, known:false, ...data });
       save();
@@ -947,7 +947,7 @@ async function _runProcessing() {
 
 // Convert any image format to PNG for API compatibility
 function toPngDataUrl(dataUrl) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -955,14 +955,16 @@ function toPngDataUrl(dataUrl) {
       canvas.getContext('2d').drawImage(img, 0, 0);
       resolve(canvas.toDataURL('image/png'));
     };
+    img.onerror = () => reject(new Error('Failed to load image for conversion'));
     img.src = dataUrl;
   });
 }
 
 // Compress image to max 800px and quality 0.75 before saving
 function compressImage(dataUrl, maxSize=400, quality=0.6) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
     img.onload = () => {
       let w = img.width, h = img.height;
       if (w > maxSize || h > maxSize) {
