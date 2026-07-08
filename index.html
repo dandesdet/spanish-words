@@ -919,8 +919,11 @@ async function _runProcessing() {
       const useFilename = document.getElementById('useFilenameCheck').checked;
       const fileName = file.name.replace(/\.[^.]+$/, '').trim(); // keep original filename chars
       const hint = useFilename ? fileName : (useWordList ? (hintWords[i] || rawHint) : (rawHint || ''));
-      const data = await recognizeImage(b64, mime, hint);
       const rawDataUrl = `data:${mime};base64,${b64}`;
+      // Convert to PNG for API compatibility (handles HEIC, JPEG, and other formats)
+      const pngDataUrl = await toPngDataUrl(rawDataUrl);
+      const pngB64 = pngDataUrl.split(',')[1];
+      const data = await recognizeImage(pngB64, 'image/png', hint);
       // IndexedDB has plenty of space - compress modestly for quality
       const compressedImg = await compressImage(rawDataUrl, 500, 0.7);
       const cardId = uid();
@@ -940,6 +943,20 @@ async function _runProcessing() {
   fill.style.width = '100%';
   pendingFiles = [];
   setTimeout(() => { renderHome(); showScreen('screen-home'); }, 500);
+}
+
+// Convert any image format to PNG for API compatibility
+function toPngDataUrl(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
 }
 
 // Compress image to max 800px and quality 0.75 before saving
