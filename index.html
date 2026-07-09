@@ -1410,6 +1410,37 @@ document.addEventListener('keydown', e => {
   else if (e.key==='ArrowLeft')  { e.preventDefault(); isFlipped ? advanceCard(null,'learn') : flipCard(); }
 });
 
+// Touch swipe on #mainCard: left = learn, right = know, tap = flip (handled by onclick)
+(function() {
+  const THRESHOLD = 60;
+  let startX = 0, startY = 0, maybeSwipe = false;
+
+  const el = document.getElementById('mainCard');
+
+  el.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    maybeSwipe = false;
+  }, {passive: true});
+
+  el.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) maybeSwipe = true;
+  }, {passive: true});
+
+  el.addEventListener('touchend', e => {
+    if (!maybeSwipe) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) >= THRESHOLD) {
+      e.preventDefault(); // prevent click/flip
+      if (dx < 0) advanceCard(null, 'learn');
+      else         advanceCard(null, 'know');
+    }
+    maybeSwipe = false;
+  }, {passive: false});
+})();
+
 function exitStudy() {
   const target = studyOrigin || 'screen-home';
   if (target === 'screen-archive') { renderArchive(); showScreen('screen-archive'); }
