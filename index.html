@@ -400,7 +400,14 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
   <div class="modal">
     <div class="modal-title">Edit folder</div>
     <input class="text-input" id="renameFolderInput" type="text" placeholder="Folder name">
-    <div class="modal-btns">
+    <div style="margin-top:14px;">
+      <label id="editFolderAddPhotosLabel" class="btn btn-outline" style="width:100%;text-align:center;cursor:pointer;display:block;box-sizing:border-box;">
+        <input type="file" id="editFolderFileInput" accept="image/*" multiple style="display:none" onchange="onEditFolderFilesSelected(event)">
+        <span>Add photos</span>
+      </label>
+      <div id="editFolderPreview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+    </div>
+    <div class="modal-btns" style="margin-top:14px;">
       <button class="btn btn-primary" onclick="confirmRenameFolder()">Save</button>
       <button class="btn btn-ghost"   onclick="closeModal('modalRenameFolder')">Cancel</button>
     </div>
@@ -1193,20 +1200,47 @@ function _updateGalleryMeta(src) {
 
 // ── RENAME FOLDER ──
 let _renameFolderId = null;
+let _editFolderPendingFiles = [];
 function openRenameFolderModal(fid) {
   _renameFolderId = fid;
   const folder = folders.find(f => f.id === fid);
   document.getElementById('renameFolderInput').value = folder ? folder.name : '';
+  _editFolderPendingFiles = [];
+  document.getElementById('editFolderPreview').innerHTML = '';
+  document.getElementById('editFolderAddPhotosLabel').dataset.count = '';
+  const fileInp = document.getElementById('editFolderFileInput');
+  fileInp.value = '';
   document.getElementById('modalRenameFolder').classList.add('open');
   setTimeout(() => { const inp = document.getElementById('renameFolderInput'); inp.focus(); inp.select(); }, 80);
+}
+function onEditFolderFilesSelected(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  _editFolderPendingFiles.push(...files);
+  const preview = document.getElementById('editFolderPreview');
+  files.forEach(f => {
+    const url = URL.createObjectURL(f);
+    const img = document.createElement('img');
+    img.src = url; img.style.cssText = 'width:52px;height:52px;object-fit:cover;border-radius:8px;border:1.5px solid rgba(201,168,76,.3);';
+    preview.appendChild(img);
+  });
+  const label = document.getElementById('editFolderAddPhotosLabel');
+  label.querySelector('span').textContent = `Add photos (${_editFolderPendingFiles.length} selected)`;
 }
 function confirmRenameFolder() {
   const name = document.getElementById('renameFolderInput').value.trim();
   if (!name || !_renameFolderId) return;
   const folder = folders.find(f => f.id === _renameFolderId);
   if (folder) { folder.name = name; save(); renderHome(); renderArchive && renderArchive(); }
+  const fid = _renameFolderId;
+  const filesToAdd = _editFolderPendingFiles.slice();
+  _editFolderPendingFiles = [];
   closeModal('modalRenameFolder');
   _renameFolderId = null;
+  if (filesToAdd.length) {
+    openUpload(fid);
+    setTimeout(() => addFilesToUpload(filesToAdd), 50);
+  }
 }
 
 function confirmDeleteFolder() {
