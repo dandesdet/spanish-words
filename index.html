@@ -142,10 +142,18 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .text-input:focus{border-color:rgba(201,168,76,.4);}
 
 /* ── STUDY ── */
-#screen-study{justify-content:center;padding-top:20px;padding-bottom:100px;}
-.study-filmstrip{position:fixed;bottom:0;left:0;right:0;padding:10px 14px 12px;display:flex;gap:6px;overflow-x:auto;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.0) 100%);z-index:20;scrollbar-width:none;align-items:center;}
+#screen-study{justify-content:center;padding-top:20px;padding-bottom:180px;}
+.study-header{position:sticky;top:0;width:100%;padding:16px 0 0;display:flex;align-items:center;gap:10px;background:var(--bg);z-index:10;flex-direction:column;}
+.study-header-row{display:flex;align-items:center;justify-content:space-between;width:100%;}
+.study-logo{display:none;}
+.study-counter{color:var(--muted);font-size:.78rem;letter-spacing:.08em;}
+.study-prog-wrap{width:100%;height:2px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;}
+.study-prog-fill{height:100%;background:var(--gold);border-radius:4px;transition:width .4s ease;}
+.study-bottom{position:fixed;bottom:0;left:0;right:0;z-index:20;padding-bottom:28px;background:linear-gradient(to top,rgba(0,0,0,.9) 60%,transparent 100%);}
+.study-bottom-prog{padding:12px 20px 10px;}
+.study-filmstrip{display:flex;gap:8px;overflow-x:auto;justify-content:center;padding:0 16px;scrollbar-width:none;align-items:center;}
 .study-filmstrip::-webkit-scrollbar{display:none;}
-.sf-thumb{width:48px;height:48px;border-radius:8px;flex-shrink:0;cursor:pointer;position:relative;overflow:hidden;border:2px solid transparent;transition:opacity .2s,border-color .2s;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.sf-thumb{width:64px;height:64px;border-radius:10px;flex-shrink:0;cursor:pointer;position:relative;overflow:hidden;border:2px solid transparent;transition:opacity .2s,border-color .2s;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1.3rem;}
 .sf-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
 .sf-thumb.sf-current{border-color:var(--gold);opacity:1 !important;box-shadow:0 0 0 2px rgba(201,168,76,.35);}
 .sf-thumb.sf-know{opacity:.45;border-color:rgba(45,180,100,.7);}
@@ -153,12 +161,6 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .sf-thumb.sf-learn{opacity:.45;border-color:rgba(220,70,70,.7);}
 .sf-thumb.sf-learn::after{content:'';position:absolute;inset:0;background:rgba(220,70,70,.18);}
 .sf-thumb.sf-pending{opacity:.3;}
-.study-header{position:sticky;top:0;width:100%;padding:16px 0 0;display:flex;align-items:center;gap:10px;background:var(--bg);z-index:10;flex-direction:column;}
-.study-header-row{display:flex;align-items:center;justify-content:space-between;width:100%;}
-.study-logo{display:none;}
-.study-counter{color:var(--muted);font-size:.78rem;letter-spacing:.08em;}
-.study-prog-wrap{width:100%;height:2px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-bottom:2px;}
-.study-prog-fill{height:100%;background:var(--gold);border-radius:4px;transition:width .4s ease;}
 
 .card-stage{width:min(620px,94vw);height:calc(100vh - 150px);max-height:820px;perspective:1400px;position:relative;margin-top:26px;}
 .card{width:100%;height:100%;position:absolute;top:0;left:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);cursor:pointer;will-change:transform;}
@@ -349,9 +351,6 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
       <div class="study-logo" onclick="showScreen('screen-home')" style="cursor:pointer;">español</div>
       <div class="study-counter" id="studyCounter"></div>
     </div>
-    <div class="study-prog-wrap">
-      <div class="study-prog-fill" id="studyProgFill" style="width:0%"></div>
-    </div>
   </div>
   <di<div class="card-stage">
     <div class="card" id="mainCard">
@@ -362,6 +361,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
         </div>
         <div class="flip-hint">tap · space</div>
         <button class="btn-mode-toggle" id="btnModeToggle" onclick="toggleTextMode(event)">Aa</button>
+        <button class="btn btn-ghost" onclick="confirmRestoreStudy(event)" style="font-size:.72rem;opacity:.35;margin-top:6px;position:relative;z-index:1;padding:6px 14px;">↺ Restore</button>
       </div>
       <div class="face back">
         <div class="spanish-word"  id="cardWord">—</div>
@@ -381,7 +381,14 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
     <div class="swipe-hint"><kbd>Space</kbd> flip</div>
     <div class="swipe-hint"><kbd>→</kbd> знаю</div>
   </div>
-  <div class="study-filmstrip" id="studyFilmstrip"></div>
+  <div class="study-bottom">
+    <div class="study-bottom-prog">
+      <div class="study-prog-wrap">
+        <div class="study-prog-fill" id="studyProgFill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="study-filmstrip" id="studyFilmstrip"></div>
+  </div>
 
 </div>
 
@@ -1546,6 +1553,14 @@ document.addEventListener('keydown', e => {
     maybeSwipe = false;
   }, {passive: false});
 })();
+
+function confirmRestoreStudy(e) {
+  if (e) e.stopPropagation();
+  if (!confirm('Reset all progress for this folder?')) return;
+  cards.filter(c => c.folderId === currentFolderId).forEach(c => c.known = false);
+  save();
+  studyFolder(currentFolderId);
+}
 
 function exitStudy() {
   const target = studyOrigin || 'screen-home';
