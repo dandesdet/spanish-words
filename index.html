@@ -1426,6 +1426,7 @@ function advanceCard(e, result, dir) {
   const el = document.getElementById('mainCard');
   el.style.transform = '';
   el.style.transition = '';
+  if (!dir) dir = (result === 'know') ? 'right' : 'left';
   const exitClass = (dir === 'right') ? 'exit-right' : 'exit-left';
   el.classList.add(exitClass);
   el.addEventListener('animationend', () => {
