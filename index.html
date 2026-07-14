@@ -142,7 +142,17 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .text-input:focus{border-color:rgba(201,168,76,.4);}
 
 /* ── STUDY ── */
-#screen-study{justify-content:center;padding-top:20px;padding-bottom:40px;}
+#screen-study{justify-content:center;padding-top:20px;padding-bottom:100px;}
+.study-filmstrip{position:fixed;bottom:0;left:0;right:0;padding:10px 14px 12px;display:flex;gap:6px;overflow-x:auto;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.0) 100%);z-index:20;scrollbar-width:none;align-items:center;}
+.study-filmstrip::-webkit-scrollbar{display:none;}
+.sf-thumb{width:48px;height:48px;border-radius:8px;flex-shrink:0;cursor:pointer;position:relative;overflow:hidden;border:2px solid transparent;transition:opacity .2s,border-color .2s;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.sf-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.sf-thumb.sf-current{border-color:var(--gold);opacity:1 !important;box-shadow:0 0 0 2px rgba(201,168,76,.35);}
+.sf-thumb.sf-know{opacity:.45;border-color:rgba(45,180,100,.7);}
+.sf-thumb.sf-know::after{content:'';position:absolute;inset:0;background:rgba(45,180,100,.18);}
+.sf-thumb.sf-learn{opacity:.45;border-color:rgba(220,70,70,.7);}
+.sf-thumb.sf-learn::after{content:'';position:absolute;inset:0;background:rgba(220,70,70,.18);}
+.sf-thumb.sf-pending{opacity:.3;}
 .study-header{position:sticky;top:0;width:100%;padding:16px 0 0;display:flex;align-items:center;gap:10px;background:var(--bg);z-index:10;flex-direction:column;}
 .study-header-row{display:flex;align-items:center;justify-content:space-between;width:100%;}
 .study-logo{display:none;}
@@ -371,6 +381,7 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
     <div class="swipe-hint"><kbd>Space</kbd> flip</div>
     <div class="swipe-hint"><kbd>→</kbd> знаю</div>
   </div>
+  <div class="study-filmstrip" id="studyFilmstrip"></div>
 
 </div>
 
@@ -532,6 +543,42 @@ let isAnimating = false;
 let isEntering  = false;
 let roundLearnSet = new Set(); // ids marked learn this round
 let studyOrigin   = 'screen-home'; // where to return on ESC
+let studyResults  = {}; // cardId -> 'know' | 'learn'
+
+function renderFilmstrip() {
+  const strip = document.getElementById('studyFilmstrip');
+  if (!strip) return;
+  strip.innerHTML = '';
+  studyQueue.forEach((card, i) => {
+    const el = document.createElement('div');
+    el.className = 'sf-thumb';
+    const res = studyResults[card.id];
+    if (i === currentIdx) el.classList.add('sf-current');
+    else if (res === 'know')  el.classList.add('sf-know');
+    else if (res === 'learn') el.classList.add('sf-learn');
+    else el.classList.add('sf-pending');
+    if (card.image) {
+      const img = document.createElement('img');
+      img.src = card.image;
+      el.appendChild(img);
+    } else {
+      el.textContent = '🖼️';
+    }
+    el.addEventListener('click', () => {
+      if (isAnimating) return;
+      isAnimating = false;
+      currentIdx = i;
+      isFlipped = false;
+      const mc = document.getElementById('mainCard');
+      mc.classList.remove('exit-left','exit-right','flipped');
+      mc.style.transform = ''; mc.style.opacity = '';
+      renderCard(currentIdx, false);
+    });
+    strip.appendChild(el);
+  });
+  const active = strip.children[currentIdx];
+  if (active) active.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+}
 
 // ════════════════════════════════
 // PERSIST
@@ -776,6 +823,7 @@ function startStudyWith(list, origin) {
   shuffle(studyQueue);
   currentIdx = 0; knownCount = 0; learnCount = 0;
   roundLearnSet = new Set();
+  studyResults = {};
   studyOrigin = origin || 'screen-home';
   showScreen('screen-study');
   renderCard(currentIdx, false);
@@ -1406,6 +1454,7 @@ function renderCard(idx, dir) {
 
   el.onclick = flipCard;
   applyCardMode();
+  renderFilmstrip();
 }
 
 function flipCard() {
@@ -1420,8 +1469,17 @@ function advanceCard(e, result, dir) {
   isAnimating = true;
 
   const card = studyQueue[currentIdx];
-  if (result === 'know') { knownCount++; card.known = true; save(); }
-  else { learnCount++; roundLearnSet.add(card.id); }
+  const prevResult = studyResults[card.id];
+  studyResults[card.id] = result;
+  if (result === 'know') {
+    if (prevResult !== 'know') knownCount++;
+    if (prevResult === 'learn') { learnCount--; roundLearnSet.delete(card.id); }
+    card.known = true; save();
+  } else {
+    if (prevResult !== 'learn') learnCount++;
+    if (prevResult === 'know') { knownCount--; card.known = false; save(); }
+    roundLearnSet.add(card.id);
+  }
 
   const el = document.getElementById('mainCard');
   el.style.transform = '';
@@ -1444,7 +1502,7 @@ document.addEventListener('keydown', e => {
     if (openModal) { openModal.classList.remove('open'); return; }
   }
   if (!document.getElementById('screen-study').classList.contains('active')) return;
-  if (e.key==='Escape') { e.preventDefault(); exitStudy(); return; }
+  if (e.key==='Escape') { e.preventDefault(); showScreen('screen-home'); return; }
   if (e.key===' '||e.key==='ArrowUp') { e.preventDefault(); flipCard(); }
   else if (e.key==='ArrowRight') { e.preventDefault(); isFlipped ? advanceCard(null,'know') : flipCard(); }
   else if (e.key==='ArrowLeft')  { e.preventDefault(); isFlipped ? advanceCard(null,'learn') : flipCard(); }
